@@ -1,0 +1,120 @@
+;
+; Quadrature encoder decoder that runs entirely in a PIO state machine.
+;
+; Adapted from pico-examples/pio/quadrature_encoder
+;   Copyright (c) 2023 Raspberry Pi (Trading) Ltd.
+;   SPDX-License-Identifier: BSD-3-Clause
+;
+; Change from the original: the original reads both phases with one
+; "IN PINS, 2", so A and B must be NEIGHBOURING pins. This version reads
+; A with "IN PINS, 1" and tests B with "JMP PIN", so A and B can be ANY two
+; GPIOs (needed for the right encoder on GP6 + GP26).
+;
+; How it works: ISR/OSR hold the previous 2-bit state (A,B). Each loop
+; shifts in the new state, giving a 4-bit number
+;     (prev_A, prev_B, new_A, new_B)
+; and jumps straight to that address in the table below, which either
+; does nothing, adds 1 or subtracts 1 from Y (the count). Every loop
+; also pushes Y into the RX FIFO so the CPU can read it at any time.
+;
+
+.pio_version 0
+
+.program quadrature_encoder
+
+; the code must be loaded at address 0, because it uses computed jumps
+.origin 0
+
+; previous state 00
+    JMP update    ; read 00
+    JMP decrement ; read 01
+    JMP increment ; read 10
+    JMP update    ; read 11
+
+; previous state 01
+    JMP increment ; read 00
+    JMP update    ; read 01
+    JMP update    ; read 10
+    JMP decrement ; read 11
+
+; previous state 10
+    JMP decrement ; read 00
+    JMP update    ; read 01
+    JMP update    ; read 10
+    JMP increment ; read 11
+
+; previous state 11 (last two entries are real code, to save space)
+    JMP update    ; read 00
+    JMP increment ; read 01
+decrement:
+    JMP Y--, update ; read 10   (pure "Y = Y - 1", always lands on update)
+
+.wrap_target
+update:
+    MOV ISR, Y      ; read 11
+    PUSH noblock    ; send the current count to the CPU (drops if FIFO full)
+
+sample_pins:
+    OUT ISR, 2      ; ISR = previous state (2 bits, kept in OSR)
+    IN PINS, 1      ; shift in A        (IN_BASE = A pin)
+    JMP PIN, b_high ; test B            (JMP_PIN = B pin)
+    IN NULL, 1      ; B = 0
+dispatch:
+    MOV OSR, ISR    ; remember this state for next time
+    MOV PC, ISR     ; computed jump into the table above
+b_high:
+    IN X, 1         ; B = 1 (X is preset to 1 by the init code)
+    JMP dispatch
+
+    ; PIO has no increment instruction: negate, decrement, negate
+increment:
+    MOV Y, ~Y
+    JMP Y--, increment_cont
+increment_cont:
+    MOV Y, ~Y
+.wrap
+
+
+% c-sdk {
+
+#include "hardware/clocks.h"
+#include "hardware/gpio.h"
+
+// pin_a and pin_b can be any two GPIOs - they do not need to be next to each other.
+// The program must already be loaded with pio_add_program() (it sits at offset 0).
+static inline void quadrature_encoder_program_init(PIO pio, uint sm, uint pin_a, uint pin_b)
+{
+    pio_gpio_init(pio, pin_a);
+    pio_gpio_init(pio, pin_b);
+    pio_sm_set_consecutive_pindirs(pio, sm, pin_a, 1, false);   // inputs
+    pio_sm_set_consecutive_pindirs(pio, sm, pin_b, 1, false);
+    gpio_pull_up(pin_a);
+    gpio_pull_up(pin_b);
+
+    pio_sm_config c = quadrature_encoder_program_get_default_config(0);
+    sm_config_set_in_pins(&c, pin_a);                 // IN PINS reads A
+    sm_config_set_jmp_pin(&c, pin_b);                 // JMP PIN tests B
+    sm_config_set_in_shift(&c, false, false, 32);     // shift left, no autopush
+    sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_NONE);
+    sm_config_set_clkdiv(&c, 1.0f);                   // sample at full speed
+
+    pio_sm_init(pio, sm, 0, &c);
+    pio_sm_exec(pio, sm, pio_encode_set(pio_x, 1));   // X = 1, used to shift in B = 1
+    pio_sm_exec(pio, sm, pio_encode_set(pio_y, 0));   // Y = count = 0
+    pio_sm_set_enabled(pio, sm, true);
+}
+
+// Returns the latest count. Drains old values from the FIFO, then waits
+// for one fresh value (a fraction of a microsecond).
+static inline int32_t quadrature_encoder_get_count(PIO pio, uint sm)
+{
+    uint32_t ret = 0;
+    int n = (int)pio_sm_get_rx_fifo_level(pio, sm) + 1;
+    while (n > 0) {
+        ret = pio_sm_get_blocking(pio, sm);
+        n--;
+    }
+    return (int32_t)ret;
+}
+
+%}
