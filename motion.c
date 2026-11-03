@@ -224,6 +224,15 @@ void stopMotors(void)
     brake_motor(RIGHT_MOTOR_A, RIGHT_MOTOR_B);
 }
 
+// Sets each wheel directly, -100 (full reverse) .. +100 (full forward),
+// with the encoder correction switched off. Used to spin on the spot.
+void driveWheels(int leftSpeed, int rightSpeed)
+{
+    drive_active = false; // stop the straight-line correction first
+    set_motor(LEFT_MOTOR_A, LEFT_MOTOR_B, leftSpeed);
+    set_motor(RIGHT_MOTOR_A, RIGHT_MOTOR_B, rightSpeed);
+}
+
 // =========================================================
 // Init
 // =========================================================
@@ -535,56 +544,56 @@ static void stop_and_report(const char *step)
     sleep_ms(PAUSE_MS);
 }
 
-int main(void)
-{
-    stdio_init_all();
-    wheel_init();
-    // encoderCheck();   // uncomment for encoder calibration mode (never returns)
+// int main(void)
+// {
+//     stdio_init_all();
+//     wheel_init();
+//     // encoderCheck();   // uncomment for encoder calibration mode (never returns)
 
-    sleep_ms(3000); // time to put the robot down (and open the serial monitor)
+//     sleep_ms(3000); // time to put the robot down (and open the serial monitor)
 
-    // Shows which build is running and with which settings.
-    // If the date/time here isn't your latest build, the Pico has old code on it.
-    printf("\n=== motion.c built %s %s | BASE_SPEED=%d TURN_SPEED=%d TURN_COUNTS_90=%d ===\n",
-           __DATE__, __TIME__, BASE_SPEED, TURN_SPEED, TURN_COUNTS_90);
+//     // Shows which build is running and with which settings.
+//     // If the date/time here isn't your latest build, the Pico has old code on it.
+//     printf("\n=== motion.c built %s %s | BASE_SPEED=%d TURN_SPEED=%d TURN_COUNTS_90=%d ===\n",
+//            __DATE__, __TIME__, BASE_SPEED, TURN_SPEED, TURN_COUNTS_90);
 
-    // Every step below finishes completely before the next one starts.
+//     // Every step below finishes completely before the next one starts.
 
-    // 1. Forward - BOTH wheels should roll forward. If the robot spins
-    //    here instead, one motor is reversed: swap its _A/_B pins in wheel.h.
-    printf("1. forward %d ms\n", DRIVE_TIME_MS);
-    resetEncoders();
-    moveForward(0, 0);
-    sleep_ms(DRIVE_TIME_MS);
-    stop_and_report("forward");
+//     // 1. Forward - BOTH wheels should roll forward. If the robot spins
+//     //    here instead, one motor is reversed: swap its _A/_B pins in wheel.h.
+//     printf("1. forward %d ms\n", DRIVE_TIME_MS);
+//     resetEncoders();
+//     moveForward(0, 0);
+//     sleep_ms(DRIVE_TIME_MS);
+//     stop_and_report("forward");
 
-    // 2. Turn left 90 degrees - main() waits here until the turn is done
-    printf("2. turn_left(90): target %ld counts per wheel\n", (long)turn_target_counts(90));
-    turn_left(90);
-    stop_and_report("left");
+//     // 2. Turn left 90 degrees - main() waits here until the turn is done
+//     printf("2. turn_left(90): target %ld counts per wheel\n", (long)turn_target_counts(90));
+//     turn_left(90);
+//     stop_and_report("left");
 
-    // 3. Forward again
-    printf("3. forward %d ms\n", DRIVE_TIME_MS);
-    resetEncoders();
-    moveForward(0, 0);
-    sleep_ms(DRIVE_TIME_MS);
-    stop_and_report("forward");
+//     // 3. Forward again
+//     printf("3. forward %d ms\n", DRIVE_TIME_MS);
+//     resetEncoders();
+//     moveForward(0, 0);
+//     sleep_ms(DRIVE_TIME_MS);
+//     stop_and_report("forward");
 
-    // 4. Turn right 90 degrees - main() waits here until the turn is done
-    printf("4. turn_right(90): target %ld counts per wheel\n", (long)turn_target_counts(90));
-    turn_right(90);
-    stop_and_report("right");
+//     // 4. Turn right 90 degrees - main() waits here until the turn is done
+//     printf("4. turn_right(90): target %ld counts per wheel\n", (long)turn_target_counts(90));
+//     turn_right(90);
+//     stop_and_report("right");
 
-    // 5. Reverse
-    printf("5. reverse %d ms\n", DRIVE_TIME_MS);
-    resetEncoders();
-    reverse(0, 0);
-    sleep_ms(DRIVE_TIME_MS);
-    stop_and_report("reverse");
+//     // 5. Reverse
+//     printf("5. reverse %d ms\n", DRIVE_TIME_MS);
+//     resetEncoders();
+//     reverse(0, 0);
+//     sleep_ms(DRIVE_TIME_MS);
+//     stop_and_report("reverse");
 
-    printf("done\n");
-    while (true)
-    {
-        sleep_ms(1000); // route finished - stay stopped
-    }
-}
+//     printf("done\n");
+//     while (true)
+//     {
+//         sleep_ms(1000); // route finished - stay stopped
+//     }
+// }

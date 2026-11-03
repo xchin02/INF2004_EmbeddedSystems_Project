@@ -18,8 +18,8 @@
 #define RIGHT_ENC_B 6
 
 // ---------------- Speeds (percent, 0-100) ----------------
-#define BASE_SPEED 60 // moveForward() / reverse() speed before offsets
-#define TURN_SPEED 45 // speed of both wheels while turning
+#define BASE_SPEED 10 // moveForward() / reverse() speed before offsets
+#define TURN_SPEED 10 // speed of both wheels while turning
 // Turn timing (TURN_90_MS) is set in motion.c, next to the turn functions.
 
 // ---------------- Functions ----------------
@@ -39,6 +39,7 @@ void turn_left(int degrees);  // left wheel backward, right wheel forward
 void turn_right(int degrees); // left wheel forward, right wheel backward
 
 void stopMotors(void); // active brake on both wheels
+void driveWheels(int leftSpeed, int rightSpeed);
 
 int32_t getLeftCount(void);
 int32_t getRightCount(void);
